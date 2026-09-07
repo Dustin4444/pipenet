@@ -1,6 +1,7 @@
 import type { AddressInfo } from 'net';
 
 import axios from 'axios';
+import { EventEmitter } from 'events';
 import http from 'http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -84,6 +85,13 @@ describe('--local-host 127.0.0.1', () => {
   });
 });
 
+describe('error handling', () => {
+  it('should include server error message', async () => {
+    const result = pipenet(fakePort, { host, subdomain: 'no' });
+    await expect(result).rejects.toThrow('Invalid subdomain');
+  });
+});
+
 describe('custom headers', () => {
   it('should accept custom headers option', async () => {
     const customHeaders = {
@@ -94,6 +102,26 @@ describe('custom headers', () => {
     expect(tunnel.url).toMatch(/^https?:\/\/[a-z0-9-]+\.localhost:\d+$/);
     tunnel.close();
   });
+});
+
+it('does not leak close listeners across tunnel reconnections', async () => {
+  const tunnel = await pipenet(fakePort, { host });
+  const cluster = tunnel.tunnelCluster!;
+
+  const before = tunnel.listenerCount('close');
+
+  // Force rapid reconnection cycles by emitting open→dead on the cluster.
+  for (let i = 0; i < 20; i++) {
+    const fakeSocket = new EventEmitter() as { destroy: () => void } & EventEmitter;
+    fakeSocket.destroy = () => {};
+    cluster.emit('open', fakeSocket);
+    cluster.emit('dead', fakeSocket);
+  }
+
+  // Without the fix, 20 close handlers would accumulate.
+  // With eager cleanup, count should not grow.
+  expect(tunnel.listenerCount('close')).toBe(before);
+  tunnel.close();
 });
 
 });

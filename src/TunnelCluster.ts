@@ -64,6 +64,10 @@ export class TunnelCluster extends EventEmitter {
     });
 
     remote.setKeepAlive(true);
+    remote.setTimeout(30000);
+    remote.on('timeout', () => {
+      remote.destroy(new Error('Remote connection timeout'));
+    });
 
     remote.on('error', (err: NodeJS.ErrnoException) => {
       log('got remote connection error', err.message);
@@ -83,7 +87,7 @@ export class TunnelCluster extends EventEmitter {
     const connLocal = (): void => {
       if (remote.destroyed) {
         log('remote destroyed');
-        this.emit('dead');
+        this.emit('dead', remote);
         return;
       }
 
@@ -106,10 +110,14 @@ export class TunnelCluster extends EventEmitter {
       const local = opt.localHttps
         ? tls.connect({ host: localHost, port: localPort!, ...getLocalCertOpts() })
         : net.connect({ host: localHost, port: localPort! });
+      local.setTimeout(30000);
+      local.on('timeout', () => {
+        local.destroy(new Error('Local connection timeout'));
+      });
 
       const remoteClose = (): void => {
         log('remote close');
-        this.emit('dead');
+        this.emit('dead', remote);
         local.end();
       };
 

@@ -1,2 +1,5 @@
+.*
+!.github
 dist
 node_modules
+CLAUDE.local.md

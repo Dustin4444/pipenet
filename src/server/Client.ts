@@ -60,8 +60,8 @@ export class Client extends EventEmitter {
       agent: this.agent as unknown as http.Agent,
       headers: req.headers,
       method: req.method,
-      timeout: 60000,
       path: req.url,
+      timeout: 60000,
     };
 
     const clientReq = http.request(opt, (clientRes) => {
